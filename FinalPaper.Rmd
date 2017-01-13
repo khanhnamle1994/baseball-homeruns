@@ -1,0 +1,244 @@
+---
+title: "Baseball Batting Statistics to Predict the Number of Homeruns"
+author: "James Le"
+date: "12/19/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(mosaic)
+require(mosaicData)
+require(car)
+require(leaps)
+require(MASS)
+require(fBasics)
+require(lmtest)
+require(lawstat)
+```
+
+### Introduction
+
+My dataset comes from the field of sport, more specifically in the game of baseball. As many of you may know, statistics play a huge role in evaluating a player's and team's progress. Since the flow of a baseball game has natural breaks to it, and normally players act individually rather than performing in clusters, the sport lends itself to easy record-keeping and statistics. Traditionally, statistics such as batting average (the number of hits divided by the number at bats) and earn run average (the average number of earned runs allowed by a pitcher per 9 innings) have dominated attention in the statistical world of baseball. However, the recent advent of sabermetrics has created statistics drawing from a greater breadth of player performance meaures and playing field variables. Sabermetrics and comparative statistics attempt to provide an improved measure of a player's performance and contributions to his team from year to year, frequently against a statistical performance average.
+
+Throughout modern baseball, a few core statistics have been traditionally referenced - batting average, RBI, and homeruns. For pitchers, wins, ERA, and strikeouts are the most often-cited statistics. General managers and baseball scouts have long used the major statistics, among other factors, to understand player value. Managers, catchers and pitchers use the statistics of batters of opposing teams to develop pitching strategies and set defensive positioning on the field. On the other hand, managers and batters study opposing pitcher performance and motions in attempting to improve hitting.
+
+For this study, I attempt to answer the questions: "What are the significant variables to predict the number of homeruns hit by a baseball player?" In baseball, a homerun is scored when the ball is hit in such a way that the batter is able to circle the bases and reach home safely in one play without any errors being committed by the defensive team in the process. Homeruns are among the most popular aspects of baseball, and as a result, prolific homerun hitters are usually the most popular among fans and consequently the highest paid by teams. Therefore, it is important to study the relationships between the number of homeruns with other statistics so the players can improve their games and managers can have a more holistic evaluation of the players' batting ability. In my study, I found out that there are 6 significant predictors that have strong connections with the number of home runs a player hits: number of games played, number of hits in which the batter reached 2nd base, number of hits in which the batter reached 3rd base, number of runs batted in, number of stolen bases, and number of base on balls.
+
+### Methods
+
+My dataset contains yearly batting statistics for a subset of players collected from http://www.baseball-databank.org/. Baseball Databank is dedicated to creating and maintaining a comprehensive record of all baseball statistical data in a form that makes them useful for researchers and product developers. There are a total of 21,699 records, covering 1,228 players from 1871 to 2007. Only players with more than 15 seasons of play are included. There are 22 variables of interest in this dataset:
+
+(1) id: unique player id
+(2) year: year of data
+(3) stint
+(4) team: team played for
+(5) lg: league
+(6) g: number of games
+(7) ab: number of times at bat
+(8) r: number of runs
+(9) h: hits on which the batter reached first base safely
+(10) X2b: hits on which the batter reached second base safely
+(11) X3b: hits on which the batter reached third base safely
+(12) hr: number of home runs
+(13) rbi: runs batted in
+(14) sb: stolen bases
+(15) cs: caught stealing
+(16) bb: base on balls (walk)
+(17) so: strike outs
+(18) ibb: intentional base on balls
+(19) hbp: hits by pitch
+(20) sh: sacrifice hits
+(21) sf: sacrifice flies
+(22) gidp: ground into double play
+
+When I did a summary of the data, I noticed quite a lot of 'NA' values in the rbi, sb, cs, bb, so, ibb, hbp, sh, sf, and gidp variables. Thus, I cleaned up the data by removing the 'NA' values in rbi and sb, because these 2 variables are used in my model to predict the number of home runs (hr). The clean version of the data has 21437 observations.
+
+```{r Loading the dataset}
+setwd("/Volumes/shared/WHITEDA/MATH242-01/Assignment-Inbox/le_j6/SemesterProject/FinalSubmission")
+baseball <- read.csv("baseball.csv")
+names(baseball)
+baseball = subset(baseball, !is.na(rbi) & !is.na(sb))
+```
+
+To figure out how the data was originally gathered, I looked into Baseball DataBank's Statement of Purpose. The BDB's database is organized around the concept of annual seasons and the BDB maintains the annual stats. The organization is staffed entirely by a volunteer group of interested individuals who have compiled, designed and proofed the most complete and accurate record of baseball history in existence. First and foremost, the BDB is a library of authoritative baseball statistics and information maintained in a simple-to-access format for information providers and baseball researchers.
+
+I initially suspect of confirmation bias in the collection of the data, meaning that the volunteers choose the variables out of their own interests. However, as I read more about Baseball DataBank, it turns out that it operates under open-source principles. Its master file of names include records for all those who have played, coached, managed, umpired or worked as an executive for a major league baseball team throughout history, with biographical information and a comprehensive set of statistics detailing their annual performances at all baseball levels. Whenever possible, the Baseball Databank will also maintain a complete set of records, or allow others to link their databases, for all players in all leagues, including those who never played at the major league level. I can see that the organization tried its best to make the data as transparent and comprehensive as possible. Therefore, I do not concern much about the confirmation bias any longer.
+
+In order to conduct my analysis, I did a bit of prior research on important batting statistics that might have an effect on the number of home runs. Out of all the variables in my dataset, there are 9 that qualify to be explanatory variables: number of games (g), number of times at bat (ab), number of runs (r), number of hits on which the batter reached 1st base (h), 2nd base (X2b), and 3rd base (X3b) safely, number of runs batted in (rbi), number of stolen bases (sb), and base on balls (bb). I thus used this knowledge to fit a probabilistic model.
+
+### Results and Conclusion
+
+### Visualizing the Data
+
+I first explored the number of homeruns by visualizing the 'hr' variable with histogram and density plot in figure 1 and 2 respectively. It is clear from these graphs that the data is heavily left-skewed.
+
+After that, I did scatterplots for each of the 9 variables that I expect to have the relationship with 'hr' to observe patterns. Overall, 'hr' variable appears to have linear relationships with 'bb', 'rbi', 'X2b', 'h', 'r', 'g' and 'ab'. However, there are a lot of noises and the variability of data points is huge. Therefore, I need to use model building techniques to find the best set of explanatory variables.
+
+First of all, I fitted a model with all 9 predictors. Then I did a summary and a VIF analysis of the model to assess its significance and detect multicollinearity. 
+
+```{r Original Linear Model}
+modall = lm(hr~g+ab+r+h+X2b+X3b+rbi+sb+bb, data=baseball)
+summary(modall)
+vif(modall)
+```
+
+As p-values for all 9 variables are very low, it seems like they are statistically significant in predicting hr. VIF values for g, ab, r, and h are more than 10; so there is strong multicollinearity between these variables and hr.
+
+### Choosing Predictors
+
+The 3 variable selection techniques I used to come up with a good set of predictors are Backward Elimination, Forward Selection, and Stepwise Regression.
+
+1 - Backward Elimination
+
+Backward Elimination starts from the full model. I must choose a mechanism for discarding variables. One way to do backwards elimination is to discard variables where the p-value is not significant. However, in the presence of multicollinearity, these p-values should not be trusted. Another way is to use AIC to adjust R-squared and Mallow Cp. It is useful for multivariate logistic regression, where sum of squares techniques cannot be used.
+
+```{r}
+stepAIC(modall, direction="backward", trace=FALSE)$anova
+```
+
+Looks like the final model is the same as the initial model.
+
+2 - Forward Selection
+
+For Forward Selection, I started from a model with just an intercept and build up a model one predictor at a time. I had to tell it a model that has the maximal list of predictors, as well as what our minimum is (just intercept)
+
+```{r}
+modsmall = lm(hr~1,data=baseball) # fits a model with just an intercept
+stepAIC(modsmall, scope=list(upper=modall, lower=~1), direction="forward", trace=FALSE)$anova
+```
+
+In this case, the final model is the same one achieved via backward elimination, though it shows the order it added the various predictors.
+
+3 - Stepwise Regression
+
+Starts off looking like forward selection but allows for predictors to be kicked out as the process goes.
+
+```{r}
+stepAIC(modsmall, scope=list(upper=modall, lower=~1), direction="both", trace=FALSE)$anova
+```
+
+No terms are kicked out, so the model remains the same.
+
+### Choosing the Model
+
+At this point, it was up to me to choose the predictors because it looks like all 9 variables are reasonably good to predict number of home runs. Since ab, r, and h have high VIF, I decided to remove them from the model. Thus, the new model only includes 6 explanatory variables: g, X2b, X3b, rbi, sb, and bb.
+
+```{r Final Linear Model}
+newmod=lm(hr~g+X2b+X3b+rbi+sb+bb, data=baseball)
+summary(newmod)
+vif(newmod)
+confint(newmod, level = .95)
+```
+
+The VIF value for all 6 predictors are now below 10. The coefficient estimates are also better compared to the initial model. All p-values are very small. Similarly, the confidence intervals for all slopes do not contain 0. Thus, I am confident that this is my final model.
+
+Interpreting R-squared value: The multiple R-squared is 0.7992, while the adjusted R-squared is 0.7991. My model then explains 79.9% of variability within the response variables.
+
+### Conditions for Linear Regression
+
+The next step is to check if the conditions for the model are valid. I checked regression conditions for my model by using the suite of plots plotting the fitted model.
+
+The Residuals vs Fitted plot in figure 3 demonstrates the lack of linearity in the relationship and a violation of the equal variance assumption. The Normal Q-Qplot in figure 4 is an example of long-tailed residuals suggesting that the residuals are not normally distributed. The Scale-Location plot in figure 5 shows the big magnitude of residuals. 
+
+The Cook's distance plot in figure 6 reveals one unusual point with value close to 0.03 (the 20550th observation). The Residuals vs Leverage plot in figure 7 and the Cook's distance vs Leverage plot in figure 8 both flag the same value. Since there is only one outlier point, it is unnecessary to remove it and refit the model because my dataset has a huge sample size with more than 21400 observations.
+
+I also ran the formal tests to check these regression conditions: normality of residuals, heteroskedasticity, randomness of data, and autocorrelation/independence.
+
+### Testing for normality of residuals
+
+The D'Agostino test checks for normality by looking for skewness or kurtosis. To be normal, the data should pass ALL of these tests.
+
+```{r DAgostino Test}
+dagoTest(newmod$residuals)
+
+basicStats(newmod$residuals) # Skewness is 0.182, Kurtosis is 5.288
+tt = skewness(newmod$residuals)/sqrt(6/length(newmod$residuals))
+tt 
+
+tt2 = kurtosis(newmod$residuals)/sqrt(24/length(newmod$residuals))
+tt2 
+```
+
+In the first test, p-value for kurtosis is quite bad, so the residuals can't be normal because they have kurtosis (too heavy in the tails).
+
+The second test returns a skewness value of 10.87, which is very close to the one returned by D'Agostino of 10.78. The third test returns a kurtosis value of 158, while D'Agostino gave 49.6.
+
+Thus, the model fails to pass the normality of residuals assumption. It would probably be okay because the DagoTest shows that my model failed kurtosis much more than skewness.
+
+### Testing for heteroskedasticity
+
+The ncvTest checks for heteroskedasticity with a null hypothesis that the data is homoskedastic.
+
+```{r ncv Test}
+ncvTest(newmod)
+```
+
+p-value is 0, so I reject the null hypothesis of homoskedasticity. My model thus has very bad heteroskedasticity. In order to fix it, I need to do transformation. I tried both the log transform and the square transform, but they still returned p-value of 0. I also attempted to use robust standard errors, but that doesn't seem to fix the problem either. Thus, I had to move on to other tests.
+
+### Testing for randomness of the data
+
+The Bartels Test checks for randomness of data with a null hypothesis that the data is truly random.
+
+```{r Bartels Test}
+bartels.test(baseball$hr)
+```
+
+Here the p-value is very small, so I rejected the hypothesis of randomness. This dataset is not in anyway a random sample because a specific subset of baseball players were selected - only those who played more than 15 seasons in the period from 1871 to 2007. I would not be able to generalize from this sample. But that's okay, because I have data on all baseball players, I don't need to generalize. It is not a random sample of some unknown population; rather, I have the whole population.
+
+### Testing for autocorrelation/independence
+
+The Durbin-Watson test checks for autocorrelation with a null hypothesis that the data is truly independent.
+
+```{r Durbin-Watson Test}
+dwtest(newmod)
+```
+
+As the p-value is very small, so I rejected the hypothesis of autocorrelation. This makes sense. If the same player is in the dataset multiple times, I would not expect independence. 
+
+### Recheck the conditions for the model
+
+I rechecked the conditions for the models using several plots. The histogram of residuals in figure 9 shows no sign of skewness, thus the distribution of residuals is normal. The Residuals vs Predicted Value plot in figure 10 suggests the same thing.
+
+### Interpretation of the Results
+
+My final model is: hr = (-0.067) + (-0.023) * g + (-0.149) * X2b + (-0.744) * X3b + 0.303 * rbi + (-0.073) * sb + 0.071 * bb
+
+My model suggests that there are positive correlations between number of runs batted in and number of base on balls with number of homeruns hit. On the other hand, there are negative correlations between number of games played, number of times reached 2nd and 3rd base, and number of stolen bases with number of homeruns hit. In terms of coefficients, X3b and rbi have the strongest affect on hr in comparison to the rest of the explanatory variables.
+
+### Conclusions
+
+I struggled quite a lot to get the proper dataset for this project. I started out with a dataset on European Soccer Players that I got from Kaggle. However, I couldn't extract the data into an Excel file because it is stored in a SQLite database. Then, I switched to a dataset on Facebook User Activity that I got from a 3rd party. This time, the data frame does not have enough variables for me to do a big scale analysis. I finally landed on the Baseball Batting Stats dataset after looking on GitHub.
+
+In this project, I learned how to build a multivariate linear regression model from scratch to finish. A lot of the code from the shared drive prove to be helpful throughout my analysis. In a bigger picture, I learned more about baseball statistics and its application in the game of baseball. In particular, looking at a player's batting statistic from now on, I can predict the likelihood of him hitting a homerun in comparison to another one.
+
+### References
+
+"Baseball Statisics": https://en.wikipedia.org/wiki/Baseball_statistics
+
+"Homerun": https://en.wikipedia.org/wiki/Home_run
+
+"Baseball Databank": http://www.baseball-databank.org/
+
+"Baseball Databank Statement of Purpose": http://www.baseball-databank.org/purpose.txt
+
+### Appendix
+
+```{r Exploring Number of Homeruns}
+histogram(baseball$hr) # Figure 1
+densityplot(baseball$hr) # Figure 2
+```
+
+```{r Linear Regression Conditions}
+plot(newmod,which=1) # Figure 3
+plot(newmod,which=2) # Figure 4
+plot(newmod,which=3) # Figure 5
+plot(newmod,which=4) # Figure 6
+plot(newmod,which=5) # Figure 7
+plot(newmod,which=6) # Figure 8
+```
+
+```{r Checking Residuals of Model}
+histogram(~residuals(newmod),xlab="Residuals",density=TRUE,type="density") # Figure 9
+xyplot(residuals(newmod)~fitted(newmod),type=c("p","r"),xlab="Predicted values",ylab="Residuals") # Figure 10
+```

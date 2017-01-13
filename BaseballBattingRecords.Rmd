@@ -1,0 +1,210 @@
+---
+title: "BaseballBattingRecords"
+author: "James Le"
+date: "12/19/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(mosaic)
+require(mosaicData)
+require(car)
+require(leaps)
+require(MASS)
+```
+
+The baseball dataset contains battling statistics for a subset of players collected from http://www.baseball-databank.org/. There are a total of 21,699 records, covering 1,228 players from 1871 to 2007. Only players with more than 15 seasons of plays are included.
+
+```{r Loading the dataset}
+setwd("/Volumes/shared/WHITEDA/MATH242-01/Assignment-Inbox/le_j6/SemesterProject")
+baseball <- read.csv("baseball.csv")
+names(baseball)
+summary(baseball)
+head(baseball)
+```
+
+I notice that there are a handful of dataset with 'NA' value for certain variables, so I need to some data cleanup.
+
+```{r Cleaning Up the Dataset}
+baseball = subset(baseball, !is.na(rbi) & !is.na(sb))
+# This removes all the data points with 'NA' value for rbi and sb
+```
+
+### Visualizing the Data
+
+```{r Exploring Number of Homeruns}
+histogram(baseball$hr)
+densityplot(baseball$hr)
+```
+
+The histogram and density plot shows that the data is very right-skewed.
+
+```{r Scatterplot of Homeruns to other variables}
+xyplot(hr~g, xlab="Number of games", ylab="Number of homeruns", data=baseball)
+xyplot(hr~ab, xlab="Number of times at bat", ylab="Number of homeruns", data=baseball)
+xyplot(hr~r, xlab="Number of runs", ylab="Number of homeruns", data=baseball)
+xyplot(hr~h, xlab="Number of times reaching 1st base", ylab="Number of homeruns", data=baseball)
+xyplot(hr~X2b, xlab="Number of times reaching 2nd base", ylab="Number of homeruns", data=baseball)
+xyplot(hr~X3b, xlab="Number of times reaching 3rd base", ylab="Number of homeruns", data=baseball)
+xyplot(hr~rbi, xlab="Number of runs batted in", ylab="Number of homeruns", data=baseball)
+xyplot(hr~sb, xlab="Number of stolen bases", ylab="Number of homeruns", data=baseball)
+xyplot(hr~bb, xlab="Number of walks", ylab="Number of homeruns", data=baseball)
+```
+
+Overall, 'hr' variable appears to have linear relationships with 'bb', 'rbi', 'X2b', 'h', 'r', 'g' and 'ab'. However, there are a lot of noises and the variability of data points is huge. Therefore, I need to use model building techniques to find the best set of explanatory variables.
+
+### Choosing Predictors
+
+There are many variables that are of interest, but I want to predict a baseline measure of number of home runs (hr) using other baseline variables including number of games (g), number of times at bat (ab), number of runs (r), number of hits on which the batter reached 1st base (h), 2nd base (X2b), and 3rd base (X3b) safely, number of runs batted in (rbi), number of stolen bases (sb), and base on balls (bb).
+
+Let's fit a model with all 9 predictors to start.
+
+```{r Original Linear Model}
+modall = lm(hr~g+ab+r+h+X2b+X3b+rbi+sb+bb, data=baseball)
+summary(modall)
+vif(modall)
+```
+
+As p-values for all 9 variables are very low, it seems like they can all be significant in predicting hr. VIF values for g, ab, r, and h are more than 10; so there is strong multicollinearity between these variables and hr.
+
+We need to use variable selection techniques to come up with a good set of predictors for predicting hr.
+
+1 - Backward Elimination
+
+Backward Elimination starts from the full model. We must choose a mechanism for discarding variables. One way to do backwards elimination is to discard variables where the p-value is not significant. However, in the presence of multicollinearity, these p-values should not be trusted.
+
+Another way is to use AIC to adjust R-squared and Mallow Cp. It is useful for multivariate logistic regression, where sum of squares techniques cannot be used.
+
+```{r}
+stepAIC(modall, direction="backward", trace=FALSE)$anova
+```
+
+Looks like the final model is the same as the initial model.
+
+2 - Forward Selection
+
+For Forward Selection, we start from a model with just an intercept and build up a model one predictor at a time. We have to tell it a model that has the maximal list of predictors, as well as what our minimum is (just intercept)
+
+```{r}
+modsmall = lm(hr~1,data=baseball) # fits a model with just an intercept
+stepAIC(modsmall, scope=list(upper=modall, lower=~1), direction="forward", trace=FALSE)$anova
+```
+
+In this case, the final model is the same one achieved via backward elimination, though it shows the order it added the various predictors.
+
+3 - Stepwise Regression
+
+Starts off looking like forward selection but allows for predictors to be kicked out as the process goes.
+
+```{r}
+stepAIC(modsmall, scope=list(upper=modall, lower=~1), direction="both", trace=FALSE)$anova
+```
+
+No terms are kicked out, so the model remains the same.
+
+### Choosing the Model
+
+At this point, it is up to me to choose the predictors because it looks like all 9 variables are reasonably good to predict number of home runs. Since ab, r, and h have high VIF, I decide to remove them from the model. Thus, the new model only includes 6 explanatory variables: g, X2b, X3b, rbi, sb, and bb.
+
+```{r}
+newmod=lm(hr~g+X2b+X3b+rbi+sb+bb, data=baseball)
+summary(newmod)
+vif(newmod)
+confint(newmod, level = .95)
+```
+
+The VIF value for all 6 predictors are now below 10. The coefficient estimates are also better compared to the initial model. All p-values are very small. Similarly, the confidence intervals for all slopes do not contain 0. Thus, I am confident that this is my final model.
+
+Interpreting R-squared value: The multiple R-squared is 0.7992, while the adjusted R-squared is 0.7991. My model then explains 79.9% of variability within the response variables.
+
+### Conditions for Linear Regression
+
+I can check regression conditions for my model by using the suite of plots plotting the fitted model.
+
+```{r}
+plot(newmod,which=1) # Generates a residuals vs fitted plt
+plot(newmod,which=2) # Generates a normal qqplot
+plot(newmod,which=3) # Generates a scale-location plot
+plot(newmod,which=4) # Generates a Cook's distance plot
+plot(newmod,which=5) # Generates a residuals vs leverage plot
+plot(newmod,which=6) # Generates a Cook's distance vs leverage plot
+```
+
+The Residuals vs Fitted plot demonstrates the lack of linearity in the relationship and a violation of the equal variance assumption. The Normal Q-Qplot is an example of long-tailed residuals suggesting that the residuals are not normally distributed. The Scale-Location plot shows big magnitude of residuals. 
+
+The Cook's distance plot reveals one unusual point with value close to 0.03 (the 20550th observation). The Residuals vs Leverage plot and the Cook's distance vs Leverage plot both flag the same value. Since there is only one outlier point, it is unnecessary to remove it and refit the model because my dataset has a huge sample size with more than 21400 observations.
+
+### Testing for normality of residuals
+
+D'Agostino test checks for normality by looking for skewness or kurtosis. To be normal, the data should pass ALL of these tests.
+
+```{r D'Agostino Test}
+require(fBasics)
+dagoTest(newmod$residuals) # p-value for kurtosis is quite bad, so the residuals can't be normal because they have kurtosis (too heavy in the tails)
+
+basicStats(newmod$residuals) # Skewness is 0.182, Kurtosis is 5.288
+tt = skewness(newmod$residuals)/sqrt(6/length(newmod$residuals))
+tt # returns 10.87, which is very close to the one returned by D'Agostino (10.78)
+
+tt2 = kurtosis(newmod$residuals)/sqrt(24/length(newmod$residuals))
+tt2 # returns 158, while D'Agostino gave 49.6
+```
+
+Thus, the model fails to pass the normality of residuals assumption. It would probably be okay because the DagoTest shows that my model failed kurtosis much more than skewness.
+
+### Testing for heteroskedasticity
+
+```{r ncv Test}
+library(lmtest)
+require(lmtest)
+ncvTest(newmod) # p-value is 0, so I reject the null hypothesis of homoskedasticity
+```
+
+My model thus has very bad heteroskedasticity. In order to fix it, I need to do transformation.
+
+```{r Transformation}
+# Try a log transform
+baseball$loghr <- log(baseball$hr)
+logmod <- lm(loghr~g+X2b+X3b+rbi+sb+bb, data=baseball)
+# This doesn't work because there are infinity values in loghr
+
+# Try a square transform
+baseball$sqhr <- baseball$hr ^ 2
+sqmod <- lm(sqhr~g+X2b+X3b+rbi+sb+bb, data=baseball)
+ncvTest(sqmod) # p-value is still 0
+```
+
+I also attempted to use robust standard errors, but that doesn't seem to fix the problem. Thus, I had to move on to other tests.
+
+### Testing for randomness of the data
+
+```{r Bartels Test}
+require(lawstat)
+bartels.test(baseball$hr)
+# here the p-value is very small, so we reject the hypothesis of randomness
+```
+
+This dataset is not in anyway a random sample because a specific subset of baseball players were selected - only those who played more than 15 seasons in the period from 1871 to 2007. I would not be able to generalize from this sample. But that's okay, because I have data on all baseball players, I don't need to generalize. It is not a random sample of some unknown population; rather, I have the whole population. 
+
+### Testing for autocorrelation/independence
+
+```{r Durbin-Watson Test}
+dwtest(newmod) # p-value is very small, so we reject the hypothesis of autocorrelation
+```
+
+This makes sense. If the same player is in the dataset multiple times, I would not expect independence. 
+
+### Recheck the conditions for the model
+
+```{r}
+#generates a histogram with fitted density curve
+histogram(~residuals(newmod),xlab="Residuals",density=TRUE,type="density")
+#generates the associated qqplot
+qqnorm(newmod$residuals)
+qqline(newmod$residuals)
+#Plot using Y~X format
+xyplot(residuals(newmod)~fitted(newmod),type=c("p","r"),xlab="Predicted values",ylab="Residuals")
+```
+
+The histogram of residuals shows no sign of skewness, thus the distribution of residuals is normal. The Residuals vs Predicted Value plot suggests the same thing.
